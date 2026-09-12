@@ -1,36 +1,66 @@
-- name: Build debug APK
-  run: gradle assembleDebug --stacktrace
+name: Build VZC ADAS APK
 
 on:
-  push:
-    branches: [ "main" ]
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 
 jobs:
   build:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      # 1. Download the project from the repository
+      - name: Checkout project
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      # 2. Install Java 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '17'
-          distribution: 'temurin'
-      - name: Set up Gradle
-  uses: gradle/actions/setup-gradle@v4
-  with:
-    gradle-version: '8.9'
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+      # 3. Install Android SDK
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Upload APK Artifact
+      # 4. Install required Android SDK packages
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      # 5. Install Gradle directly
+      #    This avoids ./gradlew and its execute-permission problem.
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      # 6. Make sure the Gradle command is available
+      - name: Check Gradle
+        run: |
+          gradle --version
+
+      # 7. Build the debug APK
+      - name: Build debug APK
+        run: |
+          gradle assembleDebug --stacktrace
+
+      # 8. Check that the APK was actually created
+      - name: Verify APK
+        run: |
+          ls -lh app/build/outputs/apk/debug/
+          test -f app/build/outputs/apk/debug/app-debug.apk
+
+      # 9. Upload the APK so you can download it
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: VZC-ADAS-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
